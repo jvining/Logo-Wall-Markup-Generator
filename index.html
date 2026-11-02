@@ -1,0 +1,379 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Logo Wall Markup Generator</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+    <style>
+        body {
+            background: #f4f5f8;
+        }
+        #logoInput,
+        #outputCode {
+            font-family: SFMono-Regular, Menlo, Consolas, monospace;
+            font-size: .8rem;
+            white-space: pre;
+        }
+        #logoInput {
+            min-height: 260px;
+        }
+        #outputCode {
+            min-height: 320px;
+            background: #1e2230;
+            color: #d7dcef;
+        }
+        #previewFrame {
+            width: 100%;
+            height: 520px;
+            border: 0;
+            background: #f1f1f1;
+        }
+        .error-list {
+            max-height: 160px;
+            overflow-y: auto;
+        }
+        @media (min-width: 992px) {
+            .sticky-lg {
+                position: sticky;
+                top: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar bg-dark" data-bs-theme="dark">
+        <div class="container-xl">
+            <span class="navbar-brand mb-0 h1">Logo Wall Markup Generator</span>
+            <span class="badge text-bg-secondary">Outputs Bootstrap 4</span>
+        </div>
+    </nav>
+
+    <main class="container-xl py-4">
+        <div class="row g-4">
+            <div class="col-12 col-lg-5">
+                <div class="card shadow-sm sticky-lg">
+                    <div class="card-body">
+                        <form id="generatorForm" novalidate>
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-end mb-1">
+                                    <label for="logoInput" class="form-label mb-0 fw-semibold">Logo URLs</label>
+                                    <span id="logoCount" class="badge rounded-pill text-bg-secondary">0 logos</span>
+                                </div>
+                                <textarea id="logoInput" class="form-control" spellcheck="false" placeholder="/UploadedFiles/EventPage/1005340/uploads/logo-01.jpg&#10;https://www.example.com/images/logo-02.png"></textarea>
+                                <div class="form-text">One URL per line. Exactly <strong>28</strong> or <strong>44</strong> logos. Relative and absolute URLs accepted.</div>
+                                <div id="logoFeedback" class="invalid-feedback"></div>
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="headerInput" class="form-label fw-semibold">H2 Header</label>
+                                <input id="headerInput" type="text" class="form-control" value="Trusted By Thousands of Retailers and Brands">
+                                <div class="invalid-feedback">Header is required.</div>
+                            </div>
+
+                            <div class="row g-3 mb-3">
+                                <div class="col-12 col-sm-6">
+                                    <label for="ctaInput" class="form-label fw-semibold">Button CTA</label>
+                                    <input id="ctaInput" type="text" class="form-control" value="See Attendee List +">
+                                    <div class="invalid-feedback">Button text is required.</div>
+                                </div>
+                                <div class="col-12 col-sm-6">
+                                    <label for="linkInput" class="form-label fw-semibold">Button Link</label>
+                                    <input id="linkInput" type="text" class="form-control" spellcheck="false" placeholder="/landing/attendee-list-email">
+                                    <div class="invalid-feedback">Enter a valid relative or absolute URL.</div>
+                                </div>
+                            </div>
+
+                            <div class="form-check form-switch mb-3">
+                                <input class="form-check-input" type="checkbox" role="switch" id="newTabInput">
+                                <label class="form-check-label" for="newTabInput">Open button link in new tab</label>
+                            </div>
+
+                            <hr>
+
+                            <div class="mb-0">
+                                <label for="previewBaseInput" class="form-label fw-semibold">Preview domain <span class="fw-normal text-body-secondary">(optional)</span></label>
+                                <input id="previewBaseInput" type="text" class="form-control" spellcheck="false" placeholder="https://www.yourevent.wbresearch.com">
+                                <div class="form-text">Used only so relative logo URLs load in the preview. Not included in the output.</div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-12 col-lg-7">
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center bg-white">
+                        <span class="fw-semibold">Output Code</span>
+                        <button id="copyBtn" type="button" class="btn btn-sm btn-primary" disabled>Copy Code</button>
+                    </div>
+                    <div class="card-body">
+                        <div id="statusAlert" class="alert alert-secondary py-2 small mb-3">Paste 28 or 44 logo URLs to generate markup.</div>
+                        <textarea id="outputCode" class="form-control" readonly spellcheck="false"></textarea>
+                    </div>
+                </div>
+
+                <div class="card shadow-sm">
+                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                        <span class="fw-semibold">Preview</span>
+                        <span class="small text-body-secondary">Bootstrap 4.6.2 &middot; approximate site styles</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <iframe id="previewFrame" title="Markup preview"></iframe>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="copyToast" class="toast text-bg-success border-0" role="status" aria-live="polite">
+            <div class="toast-body">Code copied to clipboard.</div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        $(function () {
+            var ALLOWED_COUNTS = [28, 44];
+            var IND = '    ';
+
+            function escapeHtml(str) {
+                return String(str)
+                    .replace(/&/g, '&amp;')
+                    .replace(/</g, '&lt;')
+                    .replace(/>/g, '&gt;')
+                    .replace(/"/g, '&quot;')
+                    .replace(/'/g, '&#39;');
+            }
+
+            function isValidUrl(value) {
+                if (!value || /\s/.test(value)) return false;
+                if (/^https?:\/\//i.test(value)) {
+                    try {
+                        var u = new URL(value);
+                        return !!u.hostname && (u.hostname.indexOf('.') > -1 || u.hostname === 'localhost');
+                    } catch (e) {
+                        return false;
+                    }
+                }
+                if (/^\/\//.test(value)) {
+                    try {
+                        return !!new URL('https:' + value).hostname;
+                    } catch (e) {
+                        return false;
+                    }
+                }
+                if (/^[a-z][a-z0-9+.\-]*:/i.test(value)) return false;
+                if (/[<>"'`]/.test(value)) return false;
+                try {
+                    new URL(value, 'https://example.com/');
+                    return true;
+                } catch (e) {
+                    return false;
+                }
+            }
+
+            function altFromUrl(url) {
+                var file = url.split(/[?#]/)[0].split('/').pop() || '';
+                try { file = decodeURIComponent(file); } catch (e) {}
+                var name = file
+                    .replace(/(\.(jpe?g|png|gif|svg|webp|avif))+$/i, '')
+                    .replace(/^\d+[-_]\d+[-_]/, '')
+                    .replace(/[-_]+/g, ' ')
+                    .replace(/\blogo\d*\b/ig, '')
+                    .replace(/\d+$/, '')
+                    .replace(/\s{2,}/g, ' ')
+                    .trim();
+                return name ? name + ' logo' : 'Company logo';
+            }
+
+            function img(url, opacity) {
+                return '<img src="' + escapeHtml(url) + '" alt="' + escapeHtml(altFromUrl(url)) + '" class="img-fluid d-block mx-auto img-grey w-75 my-2" style="mix-blend-mode:multiply; opacity:' + opacity + ';">';
+            }
+
+            function logoRow(urls, colClass, opacity, depth, rowClass) {
+                var pad = IND.repeat(depth);
+                var out = pad + '<div class="row align-items-center ' + (rowClass || 'my-3') + '">\n';
+                urls.forEach(function (u) {
+                    out += pad + IND + '<div class="' + colClass + '">' + img(u, opacity) + '</div>\n';
+                });
+                out += pad + '</div>\n';
+                return out;
+            }
+
+            function sideColumn(urls, sideClass, depth) {
+                var pad = IND.repeat(depth);
+                var out = pad + '<div class="col-md ' + sideClass + ' d-none d-md-block">\n';
+                out += logoRow(urls, 'col-6', '.5', depth + 1);
+                out += pad + '</div>\n';
+                return out;
+            }
+
+            function buildMarkup(logos, header, cta, link, newTab) {
+                var is44 = logos.length === 44;
+                var top = is44 ? logos.slice(0, 8) : [];
+                var offset = is44 ? 8 : 0;
+                var upper = logos.slice(offset, offset + 8);
+                var left = logos.slice(offset + 8, offset + 14);
+                var right = logos.slice(offset + 14, offset + 20);
+                var lower = logos.slice(offset + 20, offset + 28);
+                var bottom = is44 ? logos.slice(36, 44) : [];
+                var target = newTab ? ' target="_blank" rel="noopener"' : '';
+                var d = 3;
+                var p = function (n) { return IND.repeat(n); };
+
+                var out = '';
+                out += '<div class="container-fluid my-3 py-3 px-md-0">\n';
+                out += p(1) + '<div class="row">\n';
+                out += p(2) + '<div class="col-md-11 mx-auto">\n';
+                out += p(d) + '<div class="row my-3">\n';
+                out += p(d + 1) + '<div class="col-12">\n';
+                out += p(d + 2) + '<hr>\n';
+                out += p(d + 1) + '</div>\n';
+                out += p(d) + '</div>\n';
+
+                if (is44) out += logoRow(top, 'col-md d-none d-md-block', '.25', d);
+                out += logoRow(upper, 'col-3 col-md', '.5', d);
+
+                out += p(d) + '<div class="row align-items-center mt-3">\n';
+                out += sideColumn(left, 'pr-0', d + 1);
+                out += p(d + 1) + '<div class="col-10 col-md-6 mx-auto px-2">\n';
+                out += p(d + 2) + '<div class="row align-items-center my-3">\n';
+                out += p(d + 3) + '<div class="col-md-10 mx-auto text-center">\n';
+                out += p(d + 4) + '<h2 class="fa-3x">' + escapeHtml(header) + '</h2>\n';
+                out += p(d + 4) + '<div class="row my-3">\n';
+                out += p(d + 5) + '<div class="col-md-8 mx-auto">\n';
+                out += p(d + 6) + '<a href="' + escapeHtml(link) + '" class="btn btn-outline-event btn-lg btn-block"' + target + '>' + escapeHtml(cta) + '</a>\n';
+                out += p(d + 5) + '</div>\n';
+                out += p(d + 4) + '</div>\n';
+                out += p(d + 3) + '</div>\n';
+                out += p(d + 2) + '</div>\n';
+                out += p(d + 1) + '</div>\n';
+                out += sideColumn(right, 'pl-0', d + 1);
+                out += p(d) + '</div>\n';
+
+                out += logoRow(lower, 'col-3 col-md', '.5', d);
+                if (is44) out += logoRow(bottom, 'col-md d-none d-md-block', '.25', d);
+
+                out += p(2) + '</div>\n';
+                out += p(1) + '</div>\n';
+                out += '</div>';
+                return out;
+            }
+
+            function setValidity($el, valid, touched) {
+                $el.toggleClass('is-invalid', touched && !valid).toggleClass('is-valid', touched && valid);
+            }
+
+            function renderPreview(markup) {
+                var base = $.trim($('#previewBaseInput').val());
+                var baseTag = base && /^https?:\/\/[^\s]+$/i.test(base) ? '<base href="' + escapeHtml(base.replace(/\/?$/, '/')) + '">' : '';
+                var doc = '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">' + baseTag +
+                    '<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.6.2/dist/css/bootstrap.min.css">' +
+                    '<style>body{background:#f1f1f1;font-family:"Open Sans",Arial,sans-serif}h2{color:#2b3467;font-weight:700}.fa-3x{font-size:2.25rem}' +
+                    '.btn-outline-event{color:#2b3467;border-color:#2b3467;background:#fff}.btn-outline-event:hover{color:#fff;background:#2b3467}.img-grey{filter:grayscale(100%)}' +
+                    'a{pointer-events:none}</style></head><body>' + (markup || '<p class="text-muted text-center p-5 m-0">Preview appears here once the inputs are valid.</p>') + '</body></html>';
+                $('#previewFrame').attr('srcdoc', doc);
+            }
+
+            var touched = {};
+
+            function update() {
+                var lines = $('#logoInput').val().split(/\r?\n/);
+                var logos = [];
+                var invalid = [];
+                lines.forEach(function (line, i) {
+                    var v = $.trim(line);
+                    if (!v) return;
+                    logos.push(v);
+                    if (!isValidUrl(v)) invalid.push({ line: i + 1, value: v });
+                });
+
+                var count = logos.length;
+                var countOk = ALLOWED_COUNTS.indexOf(count) > -1;
+                var logosOk = countOk && invalid.length === 0;
+
+                $('#logoCount')
+                    .text(count + (count === 1 ? ' logo' : ' logos'))
+                    .removeClass('text-bg-secondary text-bg-success text-bg-danger')
+                    .addClass(count === 0 ? 'text-bg-secondary' : (countOk ? 'text-bg-success' : 'text-bg-danger'));
+
+                var msgs = [];
+                if (count && !countOk) msgs.push('Found ' + count + ' logos. Exactly 28 or 44 are required (' + (count < 28 ? 28 - count + ' short of 28' : count < 44 ? (count - 28) + ' over 28 / ' + (44 - count) + ' short of 44' : (count - 44) + ' over 44') + ').');
+                if (invalid.length) {
+                    var items = invalid.map(function (x) {
+                        return '<li><strong>Line ' + x.line + ':</strong> <code>' + escapeHtml(x.value) + '</code></li>';
+                    }).join('');
+                    msgs.push('Invalid URL' + (invalid.length > 1 ? 's' : '') + ' (no spaces; use %20):<ul class="error-list mb-0 ps-3">' + items + '</ul>');
+                }
+                $('#logoFeedback').html(msgs.join('<br>'));
+                setValidity($('#logoInput'), logosOk, !!touched.logoInput && count > 0);
+
+                var header = $.trim($('#headerInput').val());
+                var cta = $.trim($('#ctaInput').val());
+                var link = $.trim($('#linkInput').val());
+                var headerOk = header.length > 0;
+                var ctaOk = cta.length > 0;
+                var linkOk = isValidUrl(link);
+
+                setValidity($('#headerInput'), headerOk, !!touched.headerInput);
+                setValidity($('#ctaInput'), ctaOk, !!touched.ctaInput);
+                setValidity($('#linkInput'), linkOk, !!touched.linkInput);
+
+                var allOk = logosOk && headerOk && ctaOk && linkOk;
+                var $alert = $('#statusAlert');
+
+                if (allOk) {
+                    var markup = buildMarkup(logos, header, cta, link, $('#newTabInput').is(':checked'));
+                    $('#outputCode').val(markup);
+                    $('#copyBtn').prop('disabled', false);
+                    $alert.attr('class', 'alert alert-success py-2 small mb-3').text('Markup generated for ' + count + ' logos (' + (count === 44 ? '5 logo rows' : '3 logo rows') + ').');
+                    renderPreview(markup);
+                } else {
+                    var missing = [];
+                    if (!logosOk) missing.push(count ? 'fix logo list' : '28 or 44 logo URLs');
+                    if (!headerOk) missing.push('header');
+                    if (!ctaOk) missing.push('button CTA');
+                    if (!linkOk) missing.push(link ? 'valid button link' : 'button link');
+                    $('#outputCode').val('');
+                    $('#copyBtn').prop('disabled', true);
+                    $alert.attr('class', 'alert alert-secondary py-2 small mb-3').text('Still needed: ' + missing.join(', ') + '.');
+                    renderPreview('');
+                }
+            }
+
+            $('#generatorForm').on('input change', 'input, textarea', function () {
+                touched[this.id] = true;
+                update();
+            });
+
+            $('#generatorForm').on('submit', function (e) {
+                e.preventDefault();
+            });
+
+            var toast = bootstrap.Toast.getOrCreateInstance(document.getElementById('copyToast'), { delay: 1800 });
+
+            $('#copyBtn').on('click', function () {
+                var code = $('#outputCode').val();
+                if (!code) return;
+                var done = function () { toast.show(); };
+                if (navigator.clipboard && window.isSecureContext) {
+                    navigator.clipboard.writeText(code).then(done, function () {
+                        $('#outputCode').trigger('select');
+                        document.execCommand('copy');
+                        done();
+                    });
+                } else {
+                    $('#outputCode').trigger('select');
+                    document.execCommand('copy');
+                    done();
+                }
+            });
+
+            update();
+        });
+    </script>
+</body>
+</html>
